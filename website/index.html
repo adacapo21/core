@@ -78,6 +78,79 @@
     </div>
   </section>
 
+  <!-- The Problem -->
+  <section class="section-full section-dark" id="problem">
+    <div class="section-full-inner">
+      <span class="section-label" style="color: var(--gray-500);">The Problem</span>
+      <h2 class="section-title" style="color: var(--white);">Every tool reinvents the wallet</h2>
+      <p class="section-description" style="color: var(--gray-400); max-width: 680px;">
+        Every CLI, agent, and script that touches a blockchain implements its own wallet management from scratch.
+        Foundry stores keys one way. Hardhat expects environment variables. Your trading bot has its own keystore.
+        Your AI agent can't access wallets created by your deployment tool.
+        The result: N tools &times; M chains = N&times;M integration problems, and keys scattered across dotfiles, env vars, and proprietary formats with no shared security model.
+      </p>
+
+      <div class="problem-diagrams">
+        <div class="problem-diagram">
+          <div class="problem-diagram-label">Today &mdash; fragmented</div>
+          <div class="architecture" style="background: var(--gray-800); border-color: var(--gray-700);">
+<pre style="color: var(--gray-400);">
+ dawn-cli ──── own keystore ──── EVM
+ foundry  ──── cast wallet  ──── EVM
+ hardhat  ──── .env vars    ──── EVM
+ solana-cli ── own keystore ──── Solana
+ agent-x  ──── cloud API    ──── EVM + Solana
+ your-bot ──── custom JSON  ──── ???
+
+ 6 tools. 6 key formats. 6 security models.
+ None of them talk to each other.
+</pre>
+          </div>
+        </div>
+        <div class="problem-diagram">
+          <div class="problem-diagram-label">With LWS &mdash; one interface</div>
+          <div class="architecture" style="background: var(--gray-800); border-color: var(--gray-700);">
+<pre style="color: var(--gray-300);">
+ dawn-cli ─────┐
+ foundry  ─────┤
+ hardhat  ─────┤
+ solana-cli ───┼──── <span style="color: #22c55e; font-weight: 700;">LWS</span> ──── All chains
+ agent-x  ─────┤
+ your-bot ─────┘
+
+ Any tool. One vault. One security model.
+ A wallet created by one tool works in every other.
+</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-points">
+        <div class="problem-point">
+          <div class="problem-point-icon" style="color: var(--red);">&times;</div>
+          <div>
+            <strong style="color: var(--white);">No portability.</strong>
+            <span style="color: var(--gray-400);">Create a wallet in one CLI, re-import it into every other tool manually. Export, copy, paste private keys between tools. Every migration is a security risk.</span>
+          </div>
+        </div>
+        <div class="problem-point">
+          <div class="problem-point-icon" style="color: var(--red);">&times;</div>
+          <div>
+            <strong style="color: var(--white);">No shared security.</strong>
+            <span style="color: var(--gray-400);">Each tool invents its own key storage, its own encryption, its own access control. Some get it right. Many don't. Private keys end up in plaintext env vars and shell history.</span>
+          </div>
+        </div>
+        <div class="problem-point">
+          <div class="problem-point-icon" style="color: var(--red);">&times;</div>
+          <div>
+            <strong style="color: var(--white);">No single point of access.</strong>
+            <span style="color: var(--gray-400);">There's no standard way for a CLI, agent, or application to say "give me a wallet and let me sign." Every integration is bespoke. Every new tool starts from zero.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Principles -->
   <section class="section-full section-alt" id="principles">
     <div class="section-full-inner">
@@ -141,11 +214,11 @@
  (Claude, dawn-cli, custom)
         │                            1. Agent calls lws.sign()
         │ LWS Interface             2. Policy engine evaluates
-        ▼                            3. Simulation runs (optional)
- ┌─────────────────────┐             4. Enclave decrypts key
- │    Access Layer      │             5. Transaction signed
- │  MCP │ REST │ SDK    │             6. Key wiped from memory
- │      │      │        │             7. Signature returned
+        ▼                            3. Enclave decrypts key
+ ┌─────────────────────┐             4. Transaction signed
+ │    Access Layer      │             5. Key wiped from memory
+ │  MCP │ REST │ SDK    │             6. Signature returned
+ │      │      │        │             7. Submit via RPC (optional)
  │  ┌───┴──────┴──────┐ │
  │  │  Policy Engine   │ │            The agent NEVER sees
  │  │  (pre-signing)   │ │            the private key.
@@ -167,7 +240,7 @@
       <div class="flow-step">
         <div class="flow-step-number">Step 1</div>
         <h4>Request</h4>
-        <p>Agent calls <code>lws_sign_and_send</code> via MCP, REST, or SDK with a chain ID and transaction object.</p>
+        <p>Agent calls <code>lws_sign</code> via MCP, REST, or SDK with a chain ID and transaction object.</p>
       </div>
       <div class="flow-arrow">&rarr;</div>
       <div class="flow-step">
@@ -178,14 +251,14 @@
       <div class="flow-arrow">&rarr;</div>
       <div class="flow-step">
         <div class="flow-step-number">Step 3</div>
-        <h4>Simulate</h4>
-        <p>Transaction is simulated on-chain to verify it will succeed and preview state changes. Reverts are caught here.</p>
+        <h4>Sign</h4>
+        <p>Key is decrypted in the isolated enclave, transaction signed, key wiped from memory. Signed transaction returned to caller.</p>
       </div>
       <div class="flow-arrow">&rarr;</div>
       <div class="flow-step">
         <div class="flow-step-number">Step 4</div>
-        <h4>Sign &amp; Send</h4>
-        <p>Key is decrypted in the isolated enclave, transaction signed, key wiped. Signed tx is broadcast and confirmed.</p>
+        <h4>Submit <span style="font-weight: 400; font-size: 0.75rem; color: var(--gray-400);">(optional)</span></h4>
+        <p>If RPC URLs are configured, the signed transaction is broadcast on-chain and the transaction hash is returned.</p>
       </div>
     </div>
   </section>
