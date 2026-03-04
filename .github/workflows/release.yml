@@ -9,6 +9,36 @@ permissions:
   contents: write
 
 jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump version in source files
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          # Python bindings
+          sed -i "s/^version = \".*\"/version = \"$V\"/" bindings/python/pyproject.toml bindings/python/Cargo.toml
+          # Node bindings
+          sed -i "s/^version = \".*\"/version = \"$V\"/" bindings/node/Cargo.toml
+          cd bindings/node
+          npm version "$V" --no-git-tag-version
+          for pkg in npm/*/package.json; do
+            jq --arg v "$V" '.version = $v' "$pkg" > tmp.json && mv tmp.json "$pkg"
+          done
+          jq --arg v "$V" '.optionalDependencies |= with_entries(.value = $v)' package.json > tmp.json && mv tmp.json package.json
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: bump version to ${GITHUB_REF_NAME#v}"
+          git push
+
   build:
     strategy:
       matrix:
@@ -82,6 +112,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set version from tag
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          sed -i.bak "s/^version = \".*\"/version = \"$V\"/" bindings/python/pyproject.toml bindings/python/Cargo.toml
+          rm -f bindings/python/pyproject.toml.bak bindings/python/Cargo.toml.bak
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -153,6 +189,21 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
 
+      - name: Set version from tag
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          sed -i.bak "s/^version = \".*\"/version = \"$V\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+          npm version "$V" --no-git-tag-version --allow-same-version
+          for pkg in npm/*/package.json; do
+            python3 -c "
+          import json
+          with open('$pkg') as f: d = json.load(f)
+          d['version'] = '$V'
+          with open('$pkg', 'w') as f: json.dump(d, f, indent=2)
+          "
+          done
+
       - name: Install dependencies
         run: npm install --ignore-scripts
 
@@ -181,6 +232,20 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Set version from tag
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          npm version "$V" --no-git-tag-version --allow-same-version
+          for pkg in npm/*/package.json; do
+            python3 -c "
+          import json
+          with open('$pkg') as f: d = json.load(f)
+          d['version'] = '$V'
+          with open('$pkg', 'w') as f: json.dump(d, f, indent=2)
+          "
+          done
+          jq --arg v "$V" '.optionalDependencies |= with_entries(.value = $v)' package.json > tmp.json && mv tmp.json package.json
 
       - name: Install dependencies
         run: npm install --ignore-scripts
@@ -211,7 +276,7 @@ jobs:
         run: npm publish --access public
 
   release:
-    needs: [build, python-wheels, node-addons]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts

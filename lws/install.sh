@@ -175,7 +175,7 @@ install_python_bindings() {
   fi
 
   info "Installing Python bindings..."
-  if pip3 install lws 2>/dev/null || python3 -m pip install lws 2>/dev/null; then
+  if pip3 install local-wallet-standard 2>/dev/null || python3 -m pip install local-wallet-standard 2>/dev/null; then
     info "Python bindings installed successfully"
   else
     warn "Failed to install Python bindings from PyPI"
