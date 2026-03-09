@@ -215,10 +215,10 @@ install_node_bindings() {
 
   # Try installing from npm registry first
   if npm install -g @local-wallet-standard/node 2>/dev/null; then
-    # Verify the package is usable (index.js must exist)
+    # Verify the package is usable (index.js must exist in the global install)
     local pkg_dir
-    pkg_dir="$(node -e "console.log(require.resolve('@local-wallet-standard/node').replace(/\/index\.js$/, ''))" 2>/dev/null)" || true
-    if [ -n "$pkg_dir" ] && [ -f "$pkg_dir/index.js" ]; then
+    pkg_dir="$(npm root -g)/@local-wallet-standard/node"
+    if [ -f "$pkg_dir/index.js" ]; then
       info "Node bindings installed successfully"
       return
     fi
