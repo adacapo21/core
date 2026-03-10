@@ -139,6 +139,12 @@ pub fn decrypt(envelope: &CryptoEnvelope, passphrase: &str) -> Result<SecretByte
             envelope.kdfparams.dklen
         )));
     }
+    if envelope.kdfparams.dklen != KDF_DKLEN {
+        return Err(CryptoError::InvalidParams(format!(
+            "dklen={} is unsupported, expected exactly {KDF_DKLEN}",
+            envelope.kdfparams.dklen
+        )));
+    }
 
     let log_n = n.trailing_zeros() as u8;
     let params = ScryptParams::new(

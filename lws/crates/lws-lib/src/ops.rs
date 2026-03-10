@@ -466,29 +466,45 @@ pub fn sign_and_send(
     vault_path: Option<&Path>,
 ) -> Result<SendResult, LwsLibError> {
     let passphrase = passphrase.unwrap_or("");
-    let chain = parse_chain(chain)?;
+    let chain_info = parse_chain(chain)?;
 
-    // 1. Decode
     let tx_hex_clean = tx_hex.strip_prefix("0x").unwrap_or(tx_hex);
     let tx_bytes = hex::decode(tx_hex_clean)
         .map_err(|e| LwsLibError::InvalidInput(format!("invalid hex transaction: {e}")))?;
 
-    let key = decrypt_signing_key(wallet, chain.chain_type, passphrase, index, vault_path)?;
+    let key = decrypt_signing_key(wallet, chain_info.chain_type, passphrase, index, vault_path)?;
+
+    sign_encode_and_broadcast(key.expose(), chain, &tx_bytes, rpc_url)
+}
+
+/// Sign, encode, and broadcast a transaction using an already-resolved private key.
+///
+/// This is the shared core of the send-transaction flow. Both the library's
+/// [`sign_and_send`] (which resolves keys from the vault) and the CLI (which
+/// resolves keys via env vars / stdin prompts) delegate here so the
+/// sign → encode → broadcast pipeline is never duplicated.
+pub fn sign_encode_and_broadcast(
+    private_key: &[u8],
+    chain: &str,
+    tx_bytes: &[u8],
+    rpc_url: Option<&str>,
+) -> Result<SendResult, LwsLibError> {
+    let chain = parse_chain(chain)?;
     let signer = signer_for_chain(chain.chain_type);
 
-    // 2. Extract signable portion (strips signature-slot headers for Solana; no-op for others)
-    let signable = signer.extract_signable_bytes(&tx_bytes)?;
+    // 1. Extract signable portion (strips signature-slot headers for Solana; no-op for others)
+    let signable = signer.extract_signable_bytes(tx_bytes)?;
 
-    // 3. Sign
-    let output = signer.sign_transaction(key.expose(), signable)?;
+    // 2. Sign
+    let output = signer.sign_transaction(private_key, signable)?;
 
-    // 4. Encode the full signed transaction
-    let signed_tx = signer.encode_signed_transaction(&tx_bytes, &output)?;
+    // 3. Encode the full signed transaction
+    let signed_tx = signer.encode_signed_transaction(tx_bytes, &output)?;
 
-    // 5. Resolve RPC URL using exact chain_id
+    // 4. Resolve RPC URL using exact chain_id
     let rpc = resolve_rpc_url(chain.chain_id, chain.chain_type, rpc_url)?;
 
-    // 6. Broadcast the full signed transaction
+    // 5. Broadcast the full signed transaction
     let tx_hash = broadcast(chain.chain_type, &rpc, &signed_tx)?;
 
     Ok(SendResult { tx_hash })

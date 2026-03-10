@@ -130,7 +130,7 @@ pub fn encode_signed_typed_tx(
     let items = &rlp_data[payload_offset..payload_offset + payload_length];
 
     // Append v, r, s as RLP-encoded items
-    let v_encoded = encode_bytes(&[v]);
+    let v_encoded = encode_bytes(strip_leading_zeros(&[v]));
     let r_encoded = encode_bytes(strip_leading_zeros(r));
     let s_encoded = encode_bytes(strip_leading_zeros(s));
 
