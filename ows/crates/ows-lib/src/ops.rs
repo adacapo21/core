@@ -595,6 +595,9 @@ fn broadcast(chain: ChainType, rpc_url: &str, signed_bytes: &[u8]) -> Result<Str
         ChainType::Cosmos => broadcast_cosmos(rpc_url, signed_bytes),
         ChainType::Tron => broadcast_tron(rpc_url, signed_bytes),
         ChainType::Ton => broadcast_ton(rpc_url, signed_bytes),
+        ChainType::Spark => Err(OwsLibError::InvalidInput(
+            "broadcast not yet supported for Spark".into(),
+        )),
     }
 }
 
@@ -891,7 +894,7 @@ mod tests {
         let vault = dir.path();
         create_wallet("multi-sign", None, None, Some(vault)).unwrap();
 
-        let chains = ["evm", "solana", "bitcoin", "cosmos", "tron", "ton"];
+        let chains = ["evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark"];
         for chain in &chains {
             let result = sign_message(
                 "multi-sign",
@@ -929,7 +932,7 @@ mod tests {
         solana_tx.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]); // message payload
         let solana_tx_hex = hex::encode(&solana_tx);
 
-        let chains = ["evm", "solana", "bitcoin", "cosmos", "tron", "ton"];
+        let chains = ["evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark"];
         for chain in &chains {
             let tx = if *chain == "solana" {
                 &solana_tx_hex
@@ -1093,7 +1096,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(info.accounts.len(), 6, "should have all 6 chain accounts");
+        assert_eq!(
+            info.accounts.len(),
+            6,
+            "should have one account per chain type"
+        );
 
         // Sign on EVM (secp256k1)
         let sig = sign_message("pk-both", "evm", "hello", None, None, None, Some(vault)).unwrap();
