@@ -55,6 +55,7 @@ impl Config {
         );
         rpc.insert("tron:mainnet".into(), "https://api.trongrid.io".into());
         rpc.insert("ton:mainnet".into(), "https://toncenter.com/api/v2".into());
+        rpc.insert("fil:mainnet".into(), "https://api.node.glif.io/rpc/v1".into());
         rpc
     }
 }
@@ -234,7 +235,7 @@ mod tests {
     fn test_load_or_default_nonexistent() {
         let config = Config::load_or_default_from(std::path::Path::new("/nonexistent/config.json"));
         // Should have all default RPCs
-        assert_eq!(config.rpc.len(), 12);
+        assert_eq!(config.rpc.len(), 13);
         assert_eq!(config.rpc_url("eip155:1"), Some("https://eth.llamarpc.com"));
     }
 
