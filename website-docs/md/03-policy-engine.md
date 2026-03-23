@@ -11,7 +11,7 @@
 | API key file format + storage (`~/.ows/keys/`) | Not started | Approach B: mnemonic re-encrypted under HKDF(token) |
 | HKDF-SHA256 key derivation for API tokens | Not started | |
 | Policy file format + storage (`~/.ows/policies/`) | Not started | |
-| Declarative policy rules (5 built-in types) | Not started | |
+| Declarative policy rules (`allowed_chains`, `expires_at`) | Partial | See below |
 | Custom executable policy protocol (stdin/stdout) | Not started | |
 | PolicyContext structure | Not started | |
 | PolicyResult structure | Not started | |
@@ -21,7 +21,7 @@
 | Failure semantics (deny on non-zero exit, bad JSON) | Not started | Executable policies only |
 | Policy actions (`deny` / `warn`) | Not started | |
 | AND semantics (all policies must allow) | Not started | |
-| Spending state tracking (`~/.ows/policy_state/`) | Not started | For daily spending limits |
+| Spending state tracking | Removed | Was only used for an unimplemented daily cap |
 | `ows policy create` CLI command | Not started | |
 | `ows key create` CLI command | Not started | |
 | Audit log integration for policy results | Not started | |
@@ -140,9 +140,8 @@ Agent calls: sign_transaction(wallet, chain, tx, "ows_key_a1b2c3...")
 10. HD-derive chain-specific key
 11. Sign transaction
 12. Zeroize mnemonic and derived key
-13. Record spend in policy state
-14. Log to audit
-15. Return signature
+13. Log to audit
+14. Return signature
 ```
 
 ### Revocation
@@ -162,27 +161,7 @@ Delete the API key file. The encrypted mnemonic copy is gone. `SHA256(T)` matche
 
 ## Declarative Policy Rules
 
-OWS provides five built-in rule types evaluated in-process (microseconds, no subprocess). These cover the common cases without requiring users to write executable policies.
-
-### `max_value_per_tx`
-
-Caps the `value` field of a single transaction.
-
-```json
-{ "type": "max_value_per_tx", "max_wei": "1000000000000000000" }
-```
-
-Parses `transaction.value` as a decimal string and denies if it exceeds the threshold. EVM-only initially (other chains' value encoding varies).
-
-### `daily_spending_limit`
-
-Caps cumulative spending across all transactions for an API key on a calendar day (UTC).
-
-```json
-{ "type": "daily_spending_limit", "max_wei": "10000000000000000000" }
-```
-
-Reads cumulative daily spend from `~/.ows/policy_state/`. Denies if adding the current transaction would exceed the cap. Resets at midnight UTC. State is per `(key_id, chain_id, date)` — different API keys have independent budgets.
+These rule types are evaluated in-process (microseconds, no subprocess). Per-transaction value caps, recipient allowlists, and cumulative daily spend are **not** implemented as declarative rules; use an **`executable`** policy (see below) if you need that level of control.
 
 ### `allowed_chains`
 
@@ -192,19 +171,9 @@ Restricts which CAIP-2 chain IDs can be signed for.
 { "type": "allowed_chains", "chain_ids": ["eip155:8453", "eip155:84532"] }
 ```
 
-### `allowed_addresses`
-
-Restricts recipient addresses (EVM `to` field).
-
-```json
-{ "type": "allowed_addresses", "addresses": ["0x742d35Cc6634C0532925a3b844Bc9e7595f2bD0C"] }
-```
-
-Case-insensitive comparison (EIP-55 normalization). EVM-only initially.
-
 ### `expires_at`
 
-Time-bound access.
+Time-bound access (compares `PolicyContext.timestamp` to this ISO-8601 string).
 
 ```json
 { "type": "expires_at", "timestamp": "2026-04-01T00:00:00Z" }
@@ -247,9 +216,8 @@ Policies are JSON files stored in `~/.ows/policies/`:
   "version": 1,
   "created_at": "2026-03-22T10:00:00Z",
   "rules": [
-    { "type": "daily_spending_limit", "max_wei": "1000000000000000000" },
     { "type": "allowed_chains", "chain_ids": ["eip155:8453", "eip155:84532"] },
-    { "type": "allowed_addresses", "addresses": ["0x742d35Cc6634C0532925a3b844Bc9e7595f2bD0C"] }
+    { "type": "expires_at", "timestamp": "2026-12-31T23:59:59Z" }
   ],
   "executable": null,
   "config": null,
@@ -373,36 +341,6 @@ ows key create --name "claude-agent" --wallet agent-treasury --policy base-agent
 ```
 
 An API key can have multiple policies attached. All attached policies are evaluated — every policy must allow the transaction for it to proceed (AND semantics). Evaluation short-circuits on the first denial. All denials are logged to the audit log.
-
-## Spending State
-
-Daily spending limits require persistent, atomic state.
-
-### Storage
-
-```
-~/.ows/policy_state/
-  <key_id>/
-    spending-<chain_id>-<YYYY-MM-DD>.json
-```
-
-```json
-{
-  "key_id": "7a2f1b3c-...",
-  "chain_id": "eip155:8453",
-  "date": "2026-03-22",
-  "total_wei": "150000000000000000",
-  "transactions": [
-    { "timestamp": "2026-03-22T10:35:22Z", "value_wei": "100000000000000000" },
-    { "timestamp": "2026-03-22T14:20:00Z", "value_wei": "50000000000000000" }
-  ]
-}
-```
-
-- State is per `(key_id, chain_id, date)` — different API keys have independent budgets
-- `flock(LOCK_EX)` for atomicity on read-modify-write
-- Spend recorded **after** signing succeeds, **before** broadcast (fail-safe)
-- Files older than 7 days garbage-collected on next policy evaluation
 
 ## Example: Custom Simulation Policy
 

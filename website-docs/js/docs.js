@@ -161,7 +161,8 @@ async function loadDoc() {
     addCopyButtons();
     scrollToHash();
   } catch (e) {
-    content.innerHTML = '<h1>Not Found</h1><p>Could not load <code>' + slug.replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }) + '.md</code>.</p>';
+    content.innerHTML = '<h1>Not Found</h1><p>Could not load <code></code>.</p>';
+    content.querySelector('code').textContent = slug + '.md';
   }
 }
 
