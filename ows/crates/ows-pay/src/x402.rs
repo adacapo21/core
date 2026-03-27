@@ -9,7 +9,9 @@ use crate::types::{
 use crate::wallet::WalletAccess;
 
 const HEADER_PAYMENT_REQUIRED: &str = "x-payment-required";
+const HEADER_PAYMENT_REQUIRED_V2: &str = "payment-required";
 const HEADER_PAYMENT: &str = "X-PAYMENT";
+const HEADER_PAYMENT_V2: &str = "payment-signature";
 
 /// Handle x402 payment for a 402 response we already received.
 pub(crate) async fn handle_x402(
@@ -177,12 +179,14 @@ fn parse_requirements(
     headers: &reqwest::header::HeaderMap,
     body_text: &str,
 ) -> Result<Vec<PaymentRequirements>, PayError> {
-    if let Some(header_val) = headers.get(HEADER_PAYMENT_REQUIRED) {
-        if let Ok(header_str) = header_val.to_str() {
-            if let Ok(decoded) = B64.decode(header_str) {
-                if let Ok(parsed) = serde_json::from_slice::<X402Response>(&decoded) {
-                    if !parsed.accepts.is_empty() {
-                        return Ok(parsed.accepts);
+    for header_name in &[HEADER_PAYMENT_REQUIRED_V2, HEADER_PAYMENT_REQUIRED] {
+        if let Some(header_val) = headers.get(*header_name) {
+            if let Ok(header_str) = header_val.to_str() {
+                if let Ok(decoded) = B64.decode(header_str) {
+                    if let Ok(parsed) = serde_json::from_slice::<X402Response>(&decoded) {
+                        if !parsed.accepts.is_empty() {
+                            return Ok(parsed.accepts);
+                        }
                     }
                 }
             }
@@ -278,7 +282,7 @@ pub(crate) fn build_request(
     }
 
     if let Some(payment) = payment_header {
-        req = req.header(HEADER_PAYMENT, payment);
+        req = req.header(HEADER_PAYMENT, payment).header(HEADER_PAYMENT_V2, payment);
     }
 
     Ok(req)
@@ -475,6 +479,55 @@ mod tests {
 
         let reqs = parse_requirements(&headers, &body).unwrap();
         assert_eq!(reqs[0].pay_to, "0xbbb");
+    }
+
+    #[test]
+    fn parse_requirements_from_v2_header() {
+        let x402 = serde_json::json!({
+            "accepts": [{
+                "scheme": "exact",
+                "network": "eip155:8453",
+                "amount": "5000",
+                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "payTo": "0xv2"
+            }]
+        });
+        let encoded = B64.encode(serde_json::to_string(&x402).unwrap().as_bytes());
+
+        let mut headers = HeaderMap::new();
+        headers.insert("payment-required", encoded.parse().unwrap());
+
+        let reqs = parse_requirements(&headers, "not json").unwrap();
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].pay_to, "0xv2");
+    }
+
+    #[test]
+    fn parse_requirements_v2_header_takes_priority_over_v1() {
+        let x402_v2 = serde_json::json!({
+            "accepts": [{"scheme": "exact", "network": "eip155:8453", "amount": "1", "asset": "0xaaa", "payTo": "0xv2"}]
+        });
+        let x402_v1 = serde_json::json!({
+            "accepts": [{"scheme": "exact", "network": "eip155:8453", "amount": "1", "asset": "0xaaa", "payTo": "0xv1"}]
+        });
+        let mut headers = HeaderMap::new();
+        headers.insert("payment-required", B64.encode(serde_json::to_string(&x402_v2).unwrap().as_bytes()).parse().unwrap());
+        headers.insert("x-payment-required", B64.encode(serde_json::to_string(&x402_v1).unwrap().as_bytes()).parse().unwrap());
+
+        let reqs = parse_requirements(&headers, "not json").unwrap();
+        assert_eq!(reqs[0].pay_to, "0xv2");
+    }
+
+    #[test]
+    fn build_request_sends_both_payment_headers() {
+        let client = reqwest::Client::new();
+        let req = build_request(&client, "https://example.com", "GET", None, Some("payload123"))
+            .unwrap()
+            .build()
+            .unwrap();
+        let headers = req.headers();
+        assert_eq!(headers.get("X-PAYMENT").unwrap(), "payload123");
+        assert_eq!(headers.get("payment-signature").unwrap(), "payload123");
     }
 
     #[test]
