@@ -8,6 +8,7 @@ const MOONPAY_API: &str = "https://agents.moonpay.com";
 
 /// MoonPay-specific chain mapping. This is separate from the protocol-level
 /// CAIP-2 utilities because MoonPay has its own chain name scheme.
+/// MoonPay expects the BNB Chain funding slug to be `bnb`, while OWS uses `bsc` as the canonical chain name.
 #[derive(Debug)]
 struct MoonPayChain {
     display_name: &'static str,
