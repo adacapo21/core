@@ -3,8 +3,8 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use crate::chains;
 use crate::error::{PayError, PayErrorCode};
 use crate::types::{
-    Eip3009Authorization, Eip3009Payload, PayResult, PaymentInfo, PaymentPayload,
-    PaymentPayloadV1, PaymentPayloadV2, PaymentRequirements, Protocol, X402Response,
+    Eip3009Authorization, Eip3009Payload, PayResult, PaymentInfo, PaymentPayload, PaymentPayloadV1,
+    PaymentPayloadV2, PaymentRequirements, Protocol, X402Response,
 };
 use crate::wallet::WalletAccess;
 
@@ -25,7 +25,8 @@ pub(crate) async fn handle_x402(
     let (x402_version, resource, requirements) = parse_requirements(resp_headers, body_402)?;
     let (req, network) = pick_payment_option(wallet, &requirements)?;
 
-    let (payload, payment_info) = build_signed_payment(wallet, req, &network, x402_version, resource)?;
+    let (payload, payment_info) =
+        build_signed_payment(wallet, req, &network, x402_version, resource)?;
 
     let payload_json = serde_json::to_string(&payload)?;
     let payload_b64 = B64.encode(payload_json.as_bytes());
@@ -222,7 +223,11 @@ fn parse_requirements(
         ));
     }
 
-    Ok((parsed.x402_version.unwrap_or(1), parsed.resource, parsed.accepts))
+    Ok((
+        parsed.x402_version.unwrap_or(1),
+        parsed.resource,
+        parsed.accepts,
+    ))
 }
 
 /// Payment schemes we know how to handle.
@@ -297,7 +302,9 @@ pub(crate) fn build_request(
     }
 
     if let Some(payment) = payment_header {
-        req = req.header(HEADER_PAYMENT, payment).header(HEADER_PAYMENT_V2, payment);
+        req = req
+            .header(HEADER_PAYMENT, payment)
+            .header(HEADER_PAYMENT_V2, payment);
     }
 
     Ok(req)
@@ -526,8 +533,18 @@ mod tests {
             "accepts": [{"scheme": "exact", "network": "eip155:8453", "amount": "1", "asset": "0xaaa", "payTo": "0xv1"}]
         });
         let mut headers = HeaderMap::new();
-        headers.insert("payment-required", B64.encode(serde_json::to_string(&x402_v2).unwrap().as_bytes()).parse().unwrap());
-        headers.insert("x-payment-required", B64.encode(serde_json::to_string(&x402_v1).unwrap().as_bytes()).parse().unwrap());
+        headers.insert(
+            "payment-required",
+            B64.encode(serde_json::to_string(&x402_v2).unwrap().as_bytes())
+                .parse()
+                .unwrap(),
+        );
+        headers.insert(
+            "x-payment-required",
+            B64.encode(serde_json::to_string(&x402_v1).unwrap().as_bytes())
+                .parse()
+                .unwrap(),
+        );
 
         let (_, _, reqs) = parse_requirements(&headers, "not json").unwrap();
         assert_eq!(reqs[0].pay_to, "0xv2");
@@ -536,10 +553,16 @@ mod tests {
     #[test]
     fn build_request_sends_both_payment_headers() {
         let client = reqwest::Client::new();
-        let req = build_request(&client, "https://example.com", "GET", None, Some("payload123"))
-            .unwrap()
-            .build()
-            .unwrap();
+        let req = build_request(
+            &client,
+            "https://example.com",
+            "GET",
+            None,
+            Some("payload123"),
+        )
+        .unwrap()
+        .build()
+        .unwrap();
         let headers = req.headers();
         assert_eq!(headers.get("X-PAYMENT").unwrap(), "payload123");
         assert_eq!(headers.get("payment-signature").unwrap(), "payload123");
