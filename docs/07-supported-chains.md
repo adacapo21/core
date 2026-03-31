@@ -119,7 +119,7 @@ Master Seed (512 bits via PBKDF2)
     └── m/44'/461'/0'/0/0   → Filecoin Account 0
 ```
 
-A single mnemonic derives accounts across all supported chains. The wallet file stores the encrypted mnemonic; the signer derives the appropriate private key using each chain's coin type and derivation path.
+For mnemonic-based wallets, a single mnemonic derives accounts across all supported chains. Those wallet files store the encrypted mnemonic, and the signer derives the appropriate private key using each chain's coin type and derivation path. Wallets imported from raw private keys instead store encrypted curve-key material directly.
 
 ## Adding a New Chain
 
