@@ -4,9 +4,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createWallet, getWallet, signMessage as owsSignMessage } from '@open-wallet-standard/core';
-import { owsToViemAccount } from '../src/index.js';
+import { owsToViemAccount } from '../src/viem.js';
 
-describe('@open-wallet-standard/viem', () => {
+describe('@open-wallet-standard/adapters — viem', () => {
   let vaultDir;
   const walletName = 'viem-test';
   before(() => { vaultDir = mkdtempSync(join(tmpdir(), 'ows-viem-test-')); createWallet(walletName, undefined, 12, vaultDir); });

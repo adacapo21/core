@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createWallet, getWallet, importWalletPrivateKey, signMessage } from '@open-wallet-standard/core';
-import { owsToSolanaKeypair } from '../src/index.js';
+import { createWallet, importWalletPrivateKey, getWallet, signMessage } from '@open-wallet-standard/core';
+import { owsToSolanaKeypair } from '../src/solana.js';
 
-describe('@open-wallet-standard/solana', () => {
+describe('@open-wallet-standard/adapters — solana', () => {
   let vaultDir;
   const walletName = 'solana-test';
   const testEd25519Key = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
