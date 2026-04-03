@@ -251,13 +251,13 @@ ows key revoke --id <key-id> --confirm
 Sign a message with chain-specific formatting (e.g., EIP-191 for EVM, `\x19TRON Signed Message` for Tron).
 
 ```bash
-ows sign message --wallet "my-wallet" --chain evm --message "hello world"
+ows sign message --wallet "my-wallet" --chain ethereum --message "hello world"
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--wallet <NAME>` | Wallet name or ID |
-| `--chain <CHAIN>` | Chain family or supported alias / CAIP-2 ID |
+| `--chain <CHAIN>` | Chain name (`ethereum`, `base`, `arbitrum`, …), CAIP-2 ID (`eip155:8453`), or bare EVM chain ID (`8453`) |
 | `--message <MSG>` | Message to sign |
 | `--encoding <ENC>` | Message encoding: `utf8` (default) or `hex` |
 | `--typed-data <JSON>` | EIP-712 typed data JSON (EVM only) |
@@ -268,13 +268,13 @@ ows sign message --wallet "my-wallet" --chain evm --message "hello world"
 Sign a raw transaction (hex-encoded bytes).
 
 ```bash
-ows sign tx --wallet "my-wallet" --chain evm --tx "02f8..."
+ows sign tx --wallet "my-wallet" --chain ethereum --tx "02f8..."
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--wallet <NAME>` | Wallet name or ID |
-| `--chain <CHAIN>` | Chain family or supported alias / CAIP-2 ID |
+| `--chain <CHAIN>` | Chain name (`ethereum`, `base`, `arbitrum`, …), CAIP-2 ID (`eip155:8453`), or bare EVM chain ID (`8453`) |
 | `--tx <HEX>` | Hex-encoded transaction bytes |
 | `--json` | Output structured JSON |
 

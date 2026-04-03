@@ -39,10 +39,10 @@ The language bindings are **fully self-contained** — they embed the Rust core 
 ows wallet create --name "agent-treasury"
 
 # Sign a message
-ows sign message --wallet agent-treasury --chain evm --message "hello"
+ows sign message --wallet agent-treasury --chain ethereum --message "hello"
 
 # Sign a transaction
-ows sign tx --wallet agent-treasury --chain evm --tx "deadbeef..."
+ows sign tx --wallet agent-treasury --chain ethereum --tx "deadbeef..."
 ```
 
 ```javascript
