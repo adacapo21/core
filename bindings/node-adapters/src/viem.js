@@ -22,15 +22,16 @@ function owsToViemAccount(walletNameOrId, options = {}) {
       return result.signature.startsWith("0x") ? result.signature : `0x${result.signature}`;
     },
     async signTransaction(transaction) {
-      let txHex;
-      if (typeof transaction === "string") {
-        txHex = transaction.startsWith("0x") ? transaction.slice(2) : transaction;
-      } else {
-        const { serializeTransaction } = require("viem");
-        txHex = serializeTransaction(transaction).slice(2);
-      }
-      const result = signTransaction(walletNameOrId, chain, txHex, options.passphrase, options.index, options.vaultPath);
-      return result.signature.startsWith("0x") ? result.signature : `0x${result.signature}`;
+      const { keccak256, serializeTransaction } = require("viem");
+      const serialized = typeof transaction === "string" ? transaction : serializeTransaction(transaction);
+      const hash = keccak256(serialized).slice(2);
+      const result = signTransaction(walletNameOrId, chain, hash, options.passphrase, options.index, options.vaultPath);
+      const sig = result.signature.startsWith("0x") ? result.signature.slice(2) : result.signature;
+      const r = `0x${sig.slice(0, 64)}`;
+      const s = `0x${sig.slice(64, 128)}`;
+      const v = BigInt(`0x${sig.slice(128, 130)}`);
+      const signed = serializeTransaction(typeof transaction === "string" ? {} : transaction, { r, s, v: v === 0n ? 27n : v < 27n ? v + 27n : v });
+      return signed;
     },
     async signTypedData(typedData) {
       const result = signTypedData(walletNameOrId, chain, JSON.stringify(typedData), options.passphrase, options.index, options.vaultPath);

@@ -59,10 +59,12 @@ describe('@open-wallet-standard/adapters — viem', () => {
     const td = { domain: { name: 'T', version: '1', chainId: '1', verifyingContract: '0x0000000000000000000000000000000000000001' }, types: { EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }], M: [{ name: 'c', type: 'string' }] }, primaryType: 'M', message: { c: 'D' } };
     assert.equal(await account.signTypedData(td), await account.signTypedData(td));
   });
-  it('signTransaction returns hex signature', async () => {
+  it('signTransaction returns RLP-encoded signed transaction', async () => {
     const account = owsToViemAccount(walletName, { vaultPath: vaultDir });
-    const sig = await account.signTransaction('0xdeadbeef');
-    assert.match(sig, /^0x[0-9a-fA-F]+$/);
+    const tx = { to: '0x0000000000000000000000000000000000000001', value: 0n, chainId: 1, type: 'eip1559', maxFeePerGas: 1000000000n, maxPriorityFeePerGas: 1000000000n };
+    const signed = await account.signTransaction(tx);
+    assert.match(signed, /^0x02/);  // EIP-1559 prefix
+    assert.ok(signed.length > 130);  // longer than a raw 65-byte signature
   });
   it('throws for nonexistent wallet', () => {
     assert.throws(() => owsToViemAccount('nonexistent', { vaultPath: vaultDir }));
