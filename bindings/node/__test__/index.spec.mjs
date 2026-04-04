@@ -201,7 +201,9 @@ describe('@open-wallet-standard/core', () => {
   it('signs messages on all chains', () => {
     createWallet('all-chain-signer', undefined, 12, vaultDir);
 
-    for (const chain of ['evm', 'solana', 'sui', 'bitcoin', 'cosmos', 'tron', 'ton', 'filecoin', 'xrpl', 'nano']) {
+    // XRPL and Nano are excluded here because their signers explicitly do not
+    // support generic off-chain message signing without a defined convention.
+    for (const chain of ['evm', 'solana', 'sui', 'bitcoin', 'cosmos', 'tron', 'ton', 'filecoin']) {
       const result = signMessage('all-chain-signer', chain, 'test', undefined, undefined, undefined, vaultDir);
       assert.ok(result.signature.length > 0, `signature should be non-empty for ${chain}`);
     }

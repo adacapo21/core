@@ -288,9 +288,16 @@ impl ChainSigner for NanoSigner {
         self.sign(private_key, &block_hash)
     }
 
-    fn sign_message(&self, private_key: &[u8], message: &[u8]) -> Result<SignOutput, SignerError> {
-        // Nano doesn't define a special message-signing prefix.
-        self.sign(private_key, message)
+    fn sign_message(
+        &self,
+        _private_key: &[u8],
+        _message: &[u8],
+    ) -> Result<SignOutput, SignerError> {
+        Err(SignerError::SigningFailed(
+            "Nano off-chain message signing is not supported: no canonical standard exists. \
+             Define an ecosystem convention before enabling this."
+                .into(),
+        ))
     }
 
     fn encode_signed_transaction(
@@ -478,13 +485,16 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_message_same_as_sign() {
+    fn test_sign_message_unsupported() {
         let key = derive_key(MNEMONIC_12, "", "m/44'/165'/0'");
         let signer = NanoSigner;
         let message = b"hello nano";
-        let sig1 = signer.sign(&key, message).unwrap();
-        let sig2 = signer.sign_message(&key, message).unwrap();
-        assert_eq!(sig1.signature, sig2.signature);
+        let result = signer.sign_message(&key, message);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Nano off-chain message signing is not supported"));
     }
 
     #[test]
