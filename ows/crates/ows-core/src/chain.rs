@@ -14,10 +14,11 @@ pub enum ChainType {
     Spark,
     Filecoin,
     Sui,
+    Xrpl,
 }
 
 /// All supported chain families, used for universal wallet derivation.
-pub const ALL_CHAIN_TYPES: [ChainType; 8] = [
+pub const ALL_CHAIN_TYPES: [ChainType; 9] = [
     ChainType::Evm,
     ChainType::Solana,
     ChainType::Bitcoin,
@@ -26,6 +27,7 @@ pub const ALL_CHAIN_TYPES: [ChainType; 8] = [
     ChainType::Ton,
     ChainType::Filecoin,
     ChainType::Sui,
+    ChainType::Xrpl,
 ];
 
 /// A specific chain (e.g. "ethereum", "arbitrum") with its family type and CAIP-2 ID.
@@ -123,29 +125,62 @@ pub const KNOWN_CHAINS: &[Chain] = &[
         chain_type: ChainType::Sui,
         chain_id: "sui:mainnet",
     },
+    Chain {
+        name: "xrpl",
+        chain_type: ChainType::Xrpl,
+        chain_id: "xrpl:mainnet",
+    },
+    Chain {
+        name: "xrpl-testnet",
+        chain_type: ChainType::Xrpl,
+        chain_id: "xrpl:testnet",
+    },
+    Chain {
+        name: "xrpl-devnet",
+        chain_type: ChainType::Xrpl,
+        chain_id: "xrpl:devnet",
+    },
 ];
 
 /// Parse a chain string into a `Chain`. Accepts:
-/// - Friendly names: "ethereum", "arbitrum", "solana", etc.
-/// - CAIP-2 chain IDs: "eip155:1", "eip155:42161", etc.
-/// - Legacy family names for backward compat: "evm" → resolves to ethereum
+/// - Friendly names: "ethereum", "base", "arbitrum", "solana", etc.
+/// - CAIP-2 chain IDs: "eip155:1", "eip155:8453", etc.
+/// - Bare numeric EVM chain IDs: "8453" → eip155:8453
+/// - Legacy "evm" (deprecated, warns on stderr, resolves to ethereum)
 pub fn parse_chain(s: &str) -> Result<Chain, String> {
     let lower = s.to_lowercase();
 
-    // Legacy family name backward compat
-    let lookup = match lower.as_str() {
-        "evm" => "ethereum",
-        _ => &lower,
-    };
+    // Legacy "evm" — deprecated, warn and resolve
+    if lower == "evm" {
+        eprintln!(
+            "warning: '--chain evm' is deprecated; use '--chain ethereum' \
+             or a specific chain name (base, arbitrum, polygon, ...)"
+        );
+        return Ok(*KNOWN_CHAINS.iter().find(|c| c.name == "ethereum").unwrap());
+    }
 
     // Try friendly name match
-    if let Some(chain) = KNOWN_CHAINS.iter().find(|c| c.name == lookup) {
+    if let Some(chain) = KNOWN_CHAINS.iter().find(|c| c.name == lower) {
         return Ok(*chain);
     }
 
     // Try CAIP-2 chain ID match
     if let Some(chain) = KNOWN_CHAINS.iter().find(|c| c.chain_id == s) {
         return Ok(*chain);
+    }
+
+    // Bare numeric → treat as EVM chain ID (eip155:<n>)
+    if !lower.is_empty() && lower.chars().all(|c| c.is_ascii_digit()) {
+        let caip2 = format!("eip155:{}", lower);
+        if let Some(chain) = KNOWN_CHAINS.iter().find(|c| c.chain_id == caip2) {
+            return Ok(*chain);
+        }
+        let leaked: &'static str = Box::leak(caip2.into_boxed_str());
+        return Ok(Chain {
+            name: leaked,
+            chain_type: ChainType::Evm,
+            chain_id: leaked,
+        });
     }
 
     // Try namespace match for unknown CAIP-2 IDs (e.g. eip155:4217, eip155:84532).
@@ -164,8 +199,13 @@ pub fn parse_chain(s: &str) -> Result<Chain, String> {
     }
 
     Err(format!(
-        "unknown chain: '{}'. Use a chain name (ethereum, solana, bitcoin, ...) or CAIP-2 ID (eip155:1, ...)",
-        s
+        "unknown chain: '{s}'\n\n\
+         Supported chains:\n  \
+           EVM:     ethereum, base, arbitrum, optimism, polygon, bsc, avalanche, plasma, etherlink\n  \
+           Solana:  solana\n  \
+           Bitcoin: bitcoin\n  \
+           Other:   cosmos, tron, ton, sui, filecoin, spark, xrpl\n\n\
+         Or use a CAIP-2 ID (eip155:8453) or bare EVM chain ID (8453)"
     ))
 }
 
@@ -187,6 +227,7 @@ impl ChainType {
             ChainType::Spark => "spark",
             ChainType::Filecoin => "fil",
             ChainType::Sui => "sui",
+            ChainType::Xrpl => "xrpl",
         }
     }
 
@@ -202,6 +243,7 @@ impl ChainType {
             ChainType::Spark => 8797555,
             ChainType::Filecoin => 461,
             ChainType::Sui => 784,
+            ChainType::Xrpl => 144,
         }
     }
 
@@ -217,6 +259,7 @@ impl ChainType {
             "spark" => Some(ChainType::Spark),
             "fil" => Some(ChainType::Filecoin),
             "sui" => Some(ChainType::Sui),
+            "xrpl" => Some(ChainType::Xrpl),
             _ => None,
         }
     }
@@ -234,6 +277,7 @@ impl fmt::Display for ChainType {
             ChainType::Spark => "spark",
             ChainType::Filecoin => "filecoin",
             ChainType::Sui => "sui",
+            ChainType::Xrpl => "xrpl",
         };
         write!(f, "{}", s)
     }
@@ -253,6 +297,7 @@ impl FromStr for ChainType {
             "spark" => Ok(ChainType::Spark),
             "filecoin" => Ok(ChainType::Filecoin),
             "sui" => Ok(ChainType::Sui),
+            "xrpl" => Ok(ChainType::Xrpl),
             _ => Err(format!("unknown chain type: {}", s)),
         }
     }
@@ -283,6 +328,7 @@ mod tests {
             (ChainType::Spark, "\"spark\""),
             (ChainType::Filecoin, "\"filecoin\""),
             (ChainType::Sui, "\"sui\""),
+            (ChainType::Xrpl, "\"xrpl\""),
         ] {
             let json = serde_json::to_string(&chain).unwrap();
             assert_eq!(json, expected);
@@ -302,6 +348,7 @@ mod tests {
         assert_eq!(ChainType::Spark.namespace(), "spark");
         assert_eq!(ChainType::Filecoin.namespace(), "fil");
         assert_eq!(ChainType::Sui.namespace(), "sui");
+        assert_eq!(ChainType::Xrpl.namespace(), "xrpl");
     }
 
     #[test]
@@ -315,6 +362,7 @@ mod tests {
         assert_eq!(ChainType::Spark.default_coin_type(), 8797555);
         assert_eq!(ChainType::Filecoin.default_coin_type(), 461);
         assert_eq!(ChainType::Sui.default_coin_type(), 784);
+        assert_eq!(ChainType::Xrpl.default_coin_type(), 144);
     }
 
     #[test]
@@ -331,6 +379,7 @@ mod tests {
         assert_eq!(ChainType::from_namespace("spark"), Some(ChainType::Spark));
         assert_eq!(ChainType::from_namespace("fil"), Some(ChainType::Filecoin));
         assert_eq!(ChainType::from_namespace("sui"), Some(ChainType::Sui));
+        assert_eq!(ChainType::from_namespace("xrpl"), Some(ChainType::Xrpl));
         assert_eq!(ChainType::from_namespace("unknown"), None);
     }
 
@@ -408,13 +457,57 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_chain_xrpl() {
+        let chain = parse_chain("xrpl").unwrap();
+        assert_eq!(chain.chain_type, ChainType::Xrpl);
+        assert_eq!(chain.chain_id, "xrpl:mainnet");
+
+        let testnet = parse_chain("xrpl-testnet").unwrap();
+        assert_eq!(testnet.chain_type, ChainType::Xrpl);
+        assert_eq!(testnet.chain_id, "xrpl:testnet");
+
+        let devnet = parse_chain("xrpl-devnet").unwrap();
+        assert_eq!(devnet.chain_type, ChainType::Xrpl);
+        assert_eq!(devnet.chain_id, "xrpl:devnet");
+
+        // CAIP-2 IDs also accepted directly
+        let via_caip2 = parse_chain("xrpl:testnet").unwrap();
+        assert_eq!(via_caip2.chain_type, ChainType::Xrpl);
+        assert_eq!(via_caip2.chain_id, "xrpl:testnet");
+    }
+
+    #[test]
+    fn test_parse_chain_bare_numeric_known() {
+        // "8453" → Base (eip155:8453)
+        let chain = parse_chain("8453").unwrap();
+        assert_eq!(chain.name, "base");
+        assert_eq!(chain.chain_type, ChainType::Evm);
+        assert_eq!(chain.chain_id, "eip155:8453");
+    }
+
+    #[test]
+    fn test_parse_chain_bare_numeric_mainnet() {
+        let chain = parse_chain("1").unwrap();
+        assert_eq!(chain.name, "ethereum");
+        assert_eq!(chain.chain_id, "eip155:1");
+    }
+
+    #[test]
+    fn test_parse_chain_bare_numeric_unknown() {
+        // Unknown EVM chain ID still resolves
+        let chain = parse_chain("99999").unwrap();
+        assert_eq!(chain.chain_type, ChainType::Evm);
+        assert_eq!(chain.chain_id, "eip155:99999");
+    }
+
+    #[test]
     fn test_parse_chain_unknown() {
         assert!(parse_chain("unknown_chain").is_err());
     }
 
     #[test]
     fn test_all_chain_types() {
-        assert_eq!(ALL_CHAIN_TYPES.len(), 8);
+        assert_eq!(ALL_CHAIN_TYPES.len(), 9);
     }
 
     #[test]

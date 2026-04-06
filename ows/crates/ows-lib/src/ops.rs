@@ -813,7 +813,36 @@ fn broadcast(chain: ChainType, rpc_url: &str, signed_bytes: &[u8]) -> Result<Str
             "broadcast not yet supported for Filecoin".into(),
         )),
         ChainType::Sui => broadcast_sui(rpc_url, signed_bytes),
+        ChainType::Xrpl => broadcast_xrpl(rpc_url, signed_bytes),
     }
+}
+
+fn broadcast_xrpl(rpc_url: &str, signed_bytes: &[u8]) -> Result<String, OwsLibError> {
+    let tx_blob = hex::encode_upper(signed_bytes);
+    let body = serde_json::json!({
+        "method": "submit",
+        "params": [{ "tx_blob": tx_blob }]
+    });
+    let resp_str = curl_post_json(rpc_url, &body.to_string())?;
+    let resp: serde_json::Value = serde_json::from_str(&resp_str)?;
+
+    // Surface engine errors before trying to extract the hash.
+    let engine_result = resp["result"]["engine_result"].as_str().unwrap_or("");
+    if !engine_result.starts_with("tes") {
+        let msg = resp["result"]["engine_result_message"]
+            .as_str()
+            .unwrap_or(engine_result);
+        return Err(OwsLibError::BroadcastFailed(format!(
+            "XRPL submit failed ({engine_result}): {msg}"
+        )));
+    }
+
+    resp["result"]["tx_json"]["hash"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| {
+            OwsLibError::BroadcastFailed(format!("no hash in XRPL response: {resp_str}"))
+        })
 }
 
 fn broadcast_evm(rpc_url: &str, signed_bytes: &[u8]) -> Result<String, OwsLibError> {
@@ -1065,7 +1094,9 @@ mod tests {
     #[test]
     fn derive_address_all_chains() {
         let phrase = generate_mnemonic(12).unwrap();
-        let chains = ["evm", "solana", "bitcoin", "cosmos", "tron", "ton", "sui"];
+        let chains = [
+            "evm", "solana", "bitcoin", "cosmos", "tron", "ton", "sui", "xrpl",
+        ];
         for chain in &chains {
             let addr = derive_address(&phrase, chain, None).unwrap();
             assert!(!addr.is_empty(), "address should be non-empty for {chain}");
@@ -1186,7 +1217,7 @@ mod tests {
         let solana_tx_hex = hex::encode(&solana_tx);
 
         let chains = [
-            "evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
+            "evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark", "sui", "xrpl",
         ];
         for chain in &chains {
             let tx = if *chain == "solana" {
